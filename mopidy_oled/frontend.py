@@ -15,19 +15,11 @@ from .brainz import Brainz
 logger = logging.getLogger(__name__)
 
 
-class PiDiConfig:
+class OLEDConfig:
     def __init__(self, config=None):
-        self.rotation = config.get("rotation", 90)
-        self.spi_port = 0
-        self.spi_chip_select_pin = 1
-        self.spi_data_command_pin = 9
-        self.spi_speed_mhz = 80
-        self.backlight_pin = 13
-        self.size = 240
-        self.blur_album_art = True
+        self.size = 128
 
-
-class PiDiFrontend(pykka.ThreadingActor, core.CoreListener):
+class OLEDFrontend(pykka.ThreadingActor, core.CoreListener):
     def __init__(self, config, core):
         super().__init__()
         self.core = core
@@ -35,7 +27,7 @@ class PiDiFrontend(pykka.ThreadingActor, core.CoreListener):
         self.current_track = None
 
     def on_start(self):
-        self.display = PiDi(self.config)
+        self.display = OLED(self.config)
         self.display.start()
         self.display.update(volume=self.core.mixer.get_volume().get())
         if "http" in self.config:
@@ -141,21 +133,6 @@ class PiDiFrontend(pykka.ThreadingActor, core.CoreListener):
 
             self.display.update(elapsed=float(time_position), length=float(length))
 
-        art = None
-        track_images = self.core.library.get_images([track.uri]).get()
-        if track.uri in track_images:
-            track_images = track_images[track.uri]
-            if len(track_images) == 1:
-                art = track_images[0].uri
-            else:
-                for image in track_images:
-                    if image.width is None or image.height is None:
-                        continue
-                    if image.height >= 240 and image.width >= 240:
-                        art = image.uri
-
-        self.display.update_album_art(art=art)
-
     def tracklist_changed(self):
         pass
 
@@ -166,13 +143,13 @@ class PiDiFrontend(pykka.ThreadingActor, core.CoreListener):
         self.display.update(volume=volume)
 
 
-class PiDi:
+class OLED:
     def __init__(self, config):
         self.config = config
         self.cache_dir = Extension.get_data_dir(config)
-        self.display_config = PiDiConfig(config["pidi"])
+        self.display_config = OLEDConfig(config["oled"])
         self.display_class = Extension.get_display_types()[
-            self.config["pidi"]["display"]
+            self.config["oled"]["display"]
         ]
 
         self._brainz = Brainz(cache_dir=self.cache_dir)
@@ -211,36 +188,10 @@ class PiDi:
         self._display.stop()
 
     def _handle_album_art(self, art):
-        if art != self._last_art:
-            self._display.update_album_art(art)
-            self._last_art = art
+        pass
 
     def update_album_art(self, art=None):
-        _album = self.title if self.album is None or self.album == "" else self.album
-
-        if art is not None:
-            if os.path.isfile(art):
-                # Art is already a locally cached file we can use
-                self._handle_album_art(art)
-                return
-
-            elif art.startswith("http://") or art.startswith("https://"):
-                file_name = self._brainz.get_cache_file_name(art)
-
-                if os.path.isfile(file_name):
-                    # If a cached file already exists, use it!
-                    self._handle_album_art(file_name)
-                    return
-
-                else:
-                    # Otherwise, request the URL and save it!
-                    response = requests.get(art)
-                    if response.status_code == 200:
-                        self._brainz.save_album_art(response.content, file_name)
-                        self._handle_album_art(file_name)
-                        return
-
-        art = self._brainz.get_album_art(self.artist, _album, self._handle_album_art)
+        pass
 
     def update(self, **kwargs):
         self.shuffle = kwargs.get("shuffle", self.shuffle)
