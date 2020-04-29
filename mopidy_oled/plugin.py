@@ -84,6 +84,11 @@ class DisplayOLED(Display):
         self._disp.image(self._image)
         self._disp.show()
 
+    def stop(self):
+        self._draw.rectangle((0,0,self._width, self._height), outline=0, fill=0)
+        self._disp.image(self._image)
+        self._disp.show()
+
     def update_album_art(self, input_file):
         pass
 
