@@ -25,6 +25,10 @@ class OLEDFrontend(pykka.ThreadingActor, core.CoreListener):
         self.core = core
         self.config = config
         self.current_track = None
+        self._mode = 1
+        self._playlistSize = 0
+        self._playlistNum = 0
+        self._playlist = None
 
     def on_start(self):
         self.display = OLED(self.config)
@@ -142,6 +146,46 @@ class OLEDFrontend(pykka.ThreadingActor, core.CoreListener):
 
         self.display.update(volume=volume)
 
+    def playlist_list(self):
+        self._playlist = self.core.playlists.as_list().get()
+        self._playlistSize = len(self._playlist)
+        self._playlistNum = 0
+        if self._mode == 0:
+            self.display.update2(self._playlist, self._playlistNum)
+
+    def playlist_prev(self):
+        self._playlistNum = self._playlistNum - 1
+        if self._playlistNum < 0:
+            self._playlistNum = self._playlistSize - 1
+        self.display.update2(self._playlist, self._playlistNum)
+
+    def playlist_next(self):
+        self._playlistNum = (self._playlistNum + 1) % self._playlistSize
+        self.display.update2(self._playlist, self._playlistNum)
+
+    def playlist_select(self):
+        playlist_items = self.core.playlists.get_items(self._playlist[self._playlistNum].uri).get()
+        itemURIs = []
+        for item in playlist_items:
+            itemURIs.append(item.uri)
+        self.core.tracklist.clear()
+        self.core.tracklist.add(uris=itemURIs)
+
+    def custom_command(self, **kwargs):
+        target = kwargs.get("target")
+        if target == 'oled':
+            self._mode = kwargs.get("mode", self._mode)
+            self.display.update(mode=self._mode)
+            playlist = kwargs.get("playlist")
+            if playlist == "list":
+                self.playlist_list()
+            elif playlist == "next":
+                self.playlist_next()
+            elif playlist == "prev":
+                self.playlist_prev()
+            elif playlist == "select":
+                self.playlist_select()
+
 
 class OLED:
     def __init__(self, config):
@@ -157,6 +201,8 @@ class OLED:
         self._running = threading.Event()
         self._delay = 1.0 / 30
         self._thread = None
+
+        self._mode = 1
 
         self.shuffle = False
         self.repeat = False
@@ -204,6 +250,7 @@ class OLED:
         self.title = kwargs.get("title", self.title)
         self.album = kwargs.get("album", self.album)
         self.artist = kwargs.get("artist", self.artist)
+        self._mode = kwargs.get("mode", self._mode)
 
         if "elapsed" in kwargs:
             if "length" in kwargs:
@@ -217,17 +264,22 @@ class OLED:
                 t_elapsed_ms = (time.time() - self._last_elapsed_update) * 1000
                 self.elapsed = float(self._last_elapsed_value + t_elapsed_ms)
                 self.progress = self.elapsed / self.length
-            self._display.update_overlay(
-                self.shuffle,
-                self.repeat,
-                self.state,
-                self.volume,
-                self.progress,
-                self.elapsed,
-                self.title,
-                self.album,
-                self.artist,
-            )
+            if self._mode == 1:
+                self._display.update_overlay(
+                    self.shuffle,
+                    self.repeat,
+                    self.state,
+                    self.volume,
+                    self.progress,
+                    self.elapsed,
+                    self.title,
+                    self.album,
+                    self.artist,
+                )
 
-            self._display.redraw()
+            if self._mode == 1:
+                self._display.redraw()
             time.sleep(self._delay)
+
+    def update2(self, playlist, index):
+        self._display.update_playlist(playlist, index)

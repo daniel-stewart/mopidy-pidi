@@ -1,6 +1,6 @@
 import time
 import subprocess
- 
+
 from board import SCL, SDA
 import busio
 from PIL import Image, ImageDraw, ImageFont
@@ -122,5 +122,38 @@ class DisplayOLED(Display):
                 offset = offset + 1
                 if offset >= num_lines:
                     break
+        if state == 'play':
+            self._draw.polygon([(5,59),(5,64),(13,61)], outline=1, fill=255)
+        elif state == 'pause':
+            self._draw.rectangle((5,60,8,64), outline=1, fill=255)
+            self._draw.rectangle((12,60,15,64), outline=1, fill=255)
+        self._draw.rectangle((20,60,20+volume/5+1,64), outline=0, fill=255)
+        #self._disp.image(self._image)
+        #self._disp.show()
+
+    def update_playlist(self, playlist, pos=0):
+        x = 10
+        num_lines = 6
+        padding = -2
+        top = padding
+        bottom = self._height - padding
+        self._draw.rectangle((0,0, self._width, self._height), outline=0, fill=0)
+        wrapper = textwrap.TextWrapper(width=21)
+        offset = 0
+        num = len(playlist)
+        start = int(pos/num_lines)
+        i = 0
+        for l in playlist:
+            if i < start:
+                continue
+            shortened_line = textwrap.shorten(text=l.name, width = 21)
+            if pos == offset:
+                self._draw.text((1, top + offset*10), "> ", font=self._font, fill=255)
+            self._draw.text((x, top + offset*10), shortened_line, font=self._font, fill=255)
+            offset = offset + 1
+            if offset >= num_lines:
+                break
         self._disp.image(self._image)
         self._disp.show()
+        for l in playlist:
+            print(l.name)
